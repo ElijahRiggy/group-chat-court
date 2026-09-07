@@ -17,6 +17,11 @@
 
 * { box-sizing: border-box; }
 
+/* Elements with a display rule (like .image-preview's display:flex) can otherwise
+   tie with the browser's default [hidden] rule and win the cascade, so hidden
+   elements stay visible. This makes [hidden] always win. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   background: var(--bg);
