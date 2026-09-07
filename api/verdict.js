@@ -167,12 +167,20 @@ export default async function handler(req, res) {
 
     const stampUpper = String(parsed.stamp || "").toUpperCase();
     let juryPercent = Math.max(0, Math.min(100, Math.round(Number(parsed.juryPercent) || 50)));
-    // Backstop in case the model doesn't follow the consistency instruction above:
-    // nudge obviously contradictory pairings (e.g. "GUILTY" + 70%+ favor) back in line.
     const ruledAgainstFiler = stampUpper.includes("GUILTY") && !stampUpper.includes("NOT GUILTY") && !stampUpper.includes("BOTH");
     const ruledForFiler = stampUpper.includes("NOT GUILTY") || stampUpper.includes("DISMISSED") || stampUpper.includes("VINDICATED");
-    if (ruledAgainstFiler && juryPercent > 45) juryPercent = 40;
-    if (ruledForFiler && juryPercent < 55) juryPercent = 60;
+
+    if (bribed) {
+      // The bribe is supposed to be an actual guarantee, not a request the model can
+      // shrug off. Force the outcome server-side instead of only asking nicely.
+      juryPercent = 90 + Math.floor(Math.random() * 10); // 90-99
+      if (ruledAgainstFiler) parsed.stamp = "NOT GUILTY";
+    } else {
+      // Backstop for non-bribed cases: nudge obviously contradictory pairings
+      // (e.g. "GUILTY" + 70%+ favor) back in line.
+      if (ruledAgainstFiler && juryPercent > 45) juryPercent = 40;
+      if (ruledForFiler && juryPercent < 55) juryPercent = 60;
+    }
 
     return res.status(200).json({
       stamp: String(parsed.stamp || "RULING ISSUED").slice(0, 40),
