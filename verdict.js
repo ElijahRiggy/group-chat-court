@@ -1,6 +1,14 @@
 // Vercel serverless function: POST /api/verdict
-// Requires an ANTHROPIC_API_KEY environment variable set in your Vercel project settings.
-// (Project Settings -> Environment Variables -> add ANTHROPIC_API_KEY -> redeploy)
+// Requires a GROQ_API_KEY environment variable set in your Vercel project settings.
+// (Project Settings -> Environment Variables -> add GROQ_API_KEY -> redeploy)
+// Get a key at https://console.groq.com
+
+// Groq's model lineup changes frequently — check https://console.groq.com/docs/models
+// before depending on this in production. qwen/qwen3.6-27b is Groq's current
+// vision+text model as of writing; some sources flag it as a preview model rather
+// than a guaranteed-stable production one, so keep an eye on the deprecations page:
+// https://console.groq.com/docs/deprecations
+const MODEL = "qwen/qwen3.6-27b";
 
 const SYSTEM_PROMPT = `You are the presiding judge of Group Chat Court, a satirical small-claims
 court that rules on petty group-chat arguments for entertainment purposes.
@@ -43,16 +51,15 @@ export default async function handler(req, res) {
     if (!ALLOWED_IMAGE_TYPES.includes(image.mediaType)) {
       return res.status(400).json({ error: "Unsupported image type." });
     }
-    // base64 is ~4/3 the size of the decoded bytes
-    const approxBytes = (image.data.length * 3) / 4;
+    const approxBytes = (image.data.length * 3) / 4; // base64 is ~4/3 the decoded size
     if (approxBytes > 6 * 1024 * 1024) {
       return res.status(400).json({ error: "Screenshot is too large." });
     }
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: "Server is missing ANTHROPIC_API_KEY." });
+    return res.status(500).json({ error: "Server is missing GROQ_API_KEY." });
   }
 
   const textPart = [
@@ -60,42 +67,42 @@ export default async function handler(req, res) {
     hasText ? `Conversation:\n${transcript}` : (hasImage ? "The evidence is the attached screenshot." : null),
   ].filter(Boolean).join("\n\n");
 
-  const userContent = [];
-  if (hasImage) {
-    userContent.push({
-      type: "image",
-      source: { type: "base64", media_type: image.mediaType, data: image.data },
-    });
-  }
-  userContent.push({ type: "text", text: textPart });
+  // Groq's chat completions API is OpenAI-compatible: image parts use "image_url"
+  // with either a remote URL or a data: URI, not Anthropic's base64 "source" shape.
+  const userContent = hasImage
+    ? [
+        { type: "image_url", image_url: { url: `data:${image.mediaType};base64,${image.data}` } },
+        { type: "text", text: textPart },
+      ]
+    : textPart;
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
+        "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "claude-sonnet-5", // swap for "claude-haiku-4-5-20251001" if you want a cheaper/faster model
-        max_tokens: 500,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: "user", content: userContent }],
+        model: MODEL,
+        max_completion_tokens: 600,
+        temperature: 0.9,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userContent },
+        ],
       }),
     });
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error("Anthropic API error:", errText);
+      console.error("Groq API error:", errText);
       return res.status(502).json({ error: "The judge is unreachable right now." });
     }
 
     const data = await response.json();
-    const rawText = (data.content || [])
-      .map((block) => (block.type === "text" ? block.text : ""))
-      .join("")
-      .trim();
+    const rawText = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || "";
 
     let parsed;
     try {

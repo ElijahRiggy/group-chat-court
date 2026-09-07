@@ -32,9 +32,16 @@ serverless function, Vercel detects both automatically.
 
 In the Vercel project: **Settings → Environment Variables**, add:
 
-- `ANTHROPIC_API_KEY` — your key from [console.anthropic.com](https://console.anthropic.com)
+- `GROQ_API_KEY` — your key from [console.groq.com](https://console.groq.com)
 
 Redeploy after adding it (env vars only apply to new deployments).
+
+`api/verdict.js` calls Groq's OpenAI-compatible endpoint
+(`https://api.groq.com/openai/v1/chat/completions`) using `qwen/qwen3.6-27b`, currently
+Groq's vision+text model. Groq's lineup changes often — if you get a
+`model_decommissioned` error, check [console.groq.com/docs/models](https://console.groq.com/docs/models)
+for the current vision-capable model and swap the `MODEL` constant at the top of
+`api/verdict.js`.
 
 ## 4. Wire up monetization
 
@@ -62,7 +69,7 @@ favor.
 
 People can attach a screenshot instead of (or alongside) pasting text. The browser
 downscales it to a max of 1400px and re-encodes as JPEG before sending, which keeps
-almost all phone screenshots well under 1MB. `api/verdict.js` sends it to Claude as an
+almost all phone screenshots well under 1MB. `api/verdict.js` sends it to Groq as an
 image content block, so the judge actually reads the screenshot.
 
 One limit to know about: Vercel's Hobby plan caps a Serverless Function's request body
@@ -72,10 +79,11 @@ keep an eye on that ceiling.
 
 ## 6. Cost control
 
-Each ruling costs one Anthropic API call. `api/verdict.js` already caps transcripts at
-4,000 characters and `max_tokens: 400` to keep costs predictable. If this gets real
-traffic, consider switching the `model` in `api/verdict.js` from `claude-sonnet-5` to
-`claude-haiku-4-5-20251001` — cheaper and fast enough for a short verdict.
+Each ruling costs one Groq API call. `api/verdict.js` already caps transcripts at
+4,000 characters and screenshots at ~6MB decoded to keep usage predictable. Groq's
+free tier is generous and the model is fast, but if you get real traffic, check
+[console.groq.com](https://console.groq.com) for current rate limits and pricing on
+`qwen/qwen3.6-27b` (or whichever model you've swapped to).
 
 ## 7. Local testing
 
@@ -87,5 +95,5 @@ vercel dev
 ```
 
 Then open the printed localhost URL — `/api/verdict` will work exactly as it will in
-production, using the same `ANTHROPIC_API_KEY` you set via `vercel env pull` or a local
+production, using the same `GROQ_API_KEY` you set via `vercel env pull` or a local
 `.env` file (do not commit `.env` to GitHub).
