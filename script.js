@@ -1,5 +1,5 @@
 // ---- Fill these in once you've created them (Stripe Payment Link + Ko-fi) ----
-const OBJECTION_PAYMENT_LINK = "https://buy.stripe.com/REPLACE_WITH_YOUR_PAYMENT_LINK";
+const OBJECTION_PAYMENT_LINK = "https://buy.stripe.com/bJe5kw5z4d1BcMe2MlenS01";
 const KOFI_LINK = "https://ko-fi.com/riggy80083";
 // --------------------------------------------------------------------------
 
