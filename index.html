@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Group Chat Court — get an official ruling on your argument</title>
+<meta name="description" content="File the argument. An AI judge weighs both sides and hands down an official, shareable verdict." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,500;0,600;0,700;1,500;1,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <header class="masthead">
+    <div class="brand">
+      <span class="brand-icon" aria-hidden="true">⚖️</span>
+      <div>
+        <h1>Group Chat Court</h1>
+        <p class="brand-sub">SMALL GRIEVANCES DIVISION</p>
+      </div>
+    </div>
+    <span class="case-pill" id="case-pill">No. —</span>
+  </header>
+
+  <div class="rule"></div>
+
+  <p class="dek">File the argument. An AI judge weighs both sides and hands down an official, shareable verdict.</p>
+  <a href="#" id="tip-link" class="tip-link" target="_blank" rel="noopener">☕ Tip the judge</a>
+
+  <section class="card" id="filing">
+    <p class="field-label">Category (optional)</p>
+    <div class="chip-row" id="chip-row">
+      <button type="button" class="chip" data-cat="Roommates">Roommates</button>
+      <button type="button" class="chip" data-cat="Family">Family</button>
+      <button type="button" class="chip" data-cat="Friend group">Friend group</button>
+      <button type="button" class="chip" data-cat="Relationship">Relationship</button>
+      <button type="button" class="chip" data-cat="Work">Work</button>
+      <button type="button" class="chip" data-cat="Group chat">Group chat</button>
+    </div>
+
+    <p class="field-label">The evidence</p>
+    <textarea id="transcript" maxlength="4000" placeholder="e.g. Sam: you said you'd venmo me back on Friday&#10;Jordan: I said I'd TRY&#10;Sam: that's not what try means"></textarea>
+
+    <div class="upload-row">
+      <label class="upload-btn" for="image-input">📎 Attach a screenshot instead</label>
+      <input type="file" id="image-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+      <span class="upload-hint">optional, up to 5MB</span>
+    </div>
+    <div class="image-preview" id="image-preview" hidden>
+      <img id="image-preview-img" alt="Uploaded screenshot preview" />
+      <button type="button" class="remove-image-btn" id="remove-image-btn" aria-label="Remove screenshot">✕ Remove</button>
+    </div>
+
+    <div class="filing-row">
+      <button type="button" class="link-btn" id="example-btn">Try an example ↻</button>
+      <span class="char-count" id="char-count">0 / 4000</span>
+    </div>
+
+    <button id="submit-btn" type="button" class="btn-primary">File Case for Ruling</button>
+    <button id="objection-btn" type="button" class="btn-bribe">🤝 Object to the Ruling — guarantee a favorable verdict ($2)</button>
+
+    <p class="error" id="error-msg" hidden></p>
+    <p class="disclaimer">For entertainment only. Group Chat Court is an AI and has passed no bar exam.</p>
+  </section>
+
+  <section class="card" id="loading-card" hidden>
+    <div class="loading-inner">
+      <span class="loading-icon" aria-hidden="true">⚖️</span>
+      <p class="loading-text">Reading the receipts&hellip;</p>
+      <button type="button" class="link-btn" id="cancel-btn">Cancel</button>
+    </div>
+  </section>
+
+  <section class="card" id="case-file" hidden aria-live="polite">
+    <blockquote class="exhibit" id="exhibit-text"></blockquote>
+
+    <h2 class="headline" id="headline-text"></h2>
+    <p class="tagline" id="tagline-text"></p>
+
+    <div class="stamp-wrap">
+      <div class="stamp" id="stamp"></div>
+    </div>
+
+    <p class="field-label">Charge</p>
+    <p class="value" id="charge-text"></p>
+
+    <p class="field-label">Ruling</p>
+    <p class="ruling-text" id="ruling-text"></p>
+
+    <p class="field-label jury-label">
+      <span>Public jury vote (in your favor)</span>
+      <span id="jury-percent">—</span>
+    </p>
+    <div class="jury-track"><div class="jury-fill" id="jury-fill"></div></div>
+
+    <p class="field-label">Sentence</p>
+    <p class="value" id="sentence-text"></p>
+
+    <div class="case-actions">
+      <button id="download-btn" type="button" class="btn-outline">Download Verdict Card</button>
+      <button id="new-case-btn" type="button" class="btn-primary btn-primary-sm">File a New Case</button>
+    </div>
+  </section>
+
+  <!-- Ad slot: uncomment once AdSense approves this site, then paste the ad unit code here.
+  <section class="ad-slot" aria-hidden="true">
+    <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-XXXXXXXXXXXXXXX" data-ad-slot="XXXXXXXXXX" data-ad-format="auto" data-full-width-responsive="true"></ins>
+  </section>
+  -->
+
+  <p class="privacy"><a href="#">Privacy Policy</a></p>
+</main>
+
+<canvas id="card-canvas" width="900" height="600" hidden></canvas>
+
+<script src="script.js"></script>
+</body>
+</html>
