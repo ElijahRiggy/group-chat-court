@@ -44,7 +44,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { transcript, category, image } = req.body || {};
+  const { transcript, category, image, bribed } = req.body || {};
 
   const hasText = typeof transcript === "string" && transcript.trim().length >= 20;
   const hasImage = image && typeof image.data === "string" && typeof image.mediaType === "string";
@@ -72,9 +72,20 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Server is missing GROQ_API_KEY." });
   }
 
+  // `bribed` is set by the client only after api/verify-bribe.js has confirmed the
+  // Stripe Checkout Session was actually paid — not just trusted from the URL. One
+  // residual gap: nothing stops someone from replaying the same paid session_id
+  // multiple times (there's no database here to mark a session as "already used").
+  // For a $2 novelty bribe that's an acceptable tradeoff; closing it fully would mean
+  // adding persistent storage (e.g. Vercel KV) to track consumed session ids.
   const textPart = [
     category ? `Category: ${category}` : null,
     hasText ? `Conversation:\n${transcript}` : (hasImage ? "The evidence is the attached screenshot." : null),
+    bribed
+      ? "NOTE: The filer paid to guarantee a favorable ruling. Rule decisively in their favor " +
+        "(e.g. a NOT GUILTY-style stamp), set juryPercent high (75-95), and have some fun with " +
+        "the ruling or tagline acknowledging that the court is being openly, shamelessly bought."
+      : null,
   ].filter(Boolean).join("\n\n");
 
   // Groq's chat completions API is OpenAI-compatible: image parts use "image_url"

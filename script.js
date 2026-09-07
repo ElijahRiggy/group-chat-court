@@ -41,6 +41,7 @@ const objectionBtn = document.getElementById("objection-btn");
 const errorEl = document.getElementById("error-msg");
 const filingSection = document.getElementById("filing");
 const loadingSection = document.getElementById("loading-card");
+const loadingTextEl = document.getElementById("loading-text");
 const cancelBtn = document.getElementById("cancel-btn");
 const caseFileSection = document.getElementById("case-file");
 const exhibitEl = document.getElementById("exhibit-text");
@@ -68,6 +69,37 @@ let selectedCategory = null;
 let currentCase = null;
 let abortController = null;
 let pendingImage = null; // { data: base64 (no prefix), mediaType }
+
+const BRIBE_STORAGE_KEY = "gcc_bribe_payload";
+const BRIBE_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour — ignore stale/abandoned attempts
+
+// localStorage (not sessionStorage) because the payment link opens in a new tab,
+// and sessionStorage isn't shared across tabs even on the same origin.
+function saveBribePayload() {
+  try {
+    localStorage.setItem(BRIBE_STORAGE_KEY, JSON.stringify({
+      transcript: transcriptEl.value.trim(),
+      category: selectedCategory,
+      image: pendingImage,
+      savedAt: Date.now(),
+    }));
+  } catch (err) {
+    console.error("Could not save case before redirecting to payment:", err);
+  }
+}
+
+function loadAndClearBribePayload() {
+  try {
+    const raw = localStorage.getItem(BRIBE_STORAGE_KEY);
+    localStorage.removeItem(BRIBE_STORAGE_KEY);
+    if (!raw) return null;
+    const payload = JSON.parse(raw);
+    if (!payload.savedAt || Date.now() - payload.savedAt > BRIBE_MAX_AGE_MS) return null;
+    return payload;
+  } catch (err) {
+    return null;
+  }
+}
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
@@ -177,11 +209,10 @@ function showError(message) {
   errorEl.hidden = false;
 }
 
-async function fileCase() {
-  const transcript = transcriptEl.value.trim();
+async function submitCase({ transcript, category, image, bribed }) {
   errorEl.hidden = true;
 
-  if (transcript.length < 20 && !pendingImage) {
+  if ((!transcript || transcript.length < 20) && !image) {
     showError("The court needs some evidence — paste the conversation or attach a screenshot.");
     return;
   }
@@ -194,21 +225,26 @@ async function fileCase() {
     const res = await fetch("/api/verdict", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ transcript, category: selectedCategory, image: pendingImage }),
+      body: JSON.stringify({ transcript, category, image, bribed: !!bribed }),
       signal: abortController.signal,
     });
 
     if (!res.ok) {
-      let message = "The court reporter fainted. Try again in a moment.";
+      let message = `Request failed (${res.status}).`;
       try {
-        const errBody = await res.json();
-        if (errBody && errBody.error) message = errBody.error;
-      } catch (_) { /* response wasn't JSON, keep the generic message */ }
+        const raw = await res.text();
+        try {
+          const errBody = JSON.parse(raw);
+          if (errBody && errBody.error) message = errBody.error;
+        } catch (_) {
+          if (raw) message = `Request failed (${res.status}): ${raw.slice(0, 200)}`;
+        }
+      } catch (_) { /* couldn't read the body at all, keep the status-only message */ }
       throw new Error(message);
     }
 
     const data = await res.json();
-    currentCase = { ...data, transcript, hadImage: !!pendingImage, caseNo: casePillEl.textContent };
+    currentCase = { ...data, transcript, hadImage: !!image, bribed: !!bribed, caseNo: casePillEl.textContent };
     renderVerdict(currentCase);
   } catch (err) {
     if (err.name === "AbortError") return;
@@ -217,6 +253,15 @@ async function fileCase() {
     filingSection.hidden = false;
     showError(err.message || "The court reporter fainted. Try again in a moment.");
   }
+}
+
+function fileCase() {
+  submitCase({
+    transcript: transcriptEl.value.trim(),
+    category: selectedCategory,
+    image: pendingImage,
+    bribed: false,
+  });
 }
 
 cancelBtn.addEventListener("click", () => {
@@ -253,6 +298,12 @@ function renderVerdict(data) {
 }
 
 objectionBtn.addEventListener("click", () => {
+  const transcript = transcriptEl.value.trim();
+  if (transcript.length < 20 && !pendingImage) {
+    showError("Add your evidence first — paste the conversation or attach a screenshot — then you can guarantee the ruling.");
+    return;
+  }
+  saveBribePayload();
   window.open(OBJECTION_PAYMENT_LINK, "_blank", "noopener");
 });
 
@@ -339,3 +390,65 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
 }
 
 submitBtn.addEventListener("click", fileCase);
+
+(async function handleBribeReturn() {
+  const params = new URLSearchParams(window.location.search);
+  const sessionId = params.get("session_id");
+  if (!sessionId) return;
+
+  // Strip the query string so refreshing/sharing the page doesn't re-trigger this
+  // or leak the session id.
+  window.history.replaceState({}, "", window.location.pathname);
+
+  const payload = loadAndClearBribePayload();
+  if (!payload) {
+    showError("Payment received, but your case didn't come back with it — paste the evidence again and file once more.");
+    return;
+  }
+
+  // Restore what was submitted, visually, before anything else.
+  transcriptEl.value = payload.transcript || "";
+  charCountEl.textContent = `${transcriptEl.value.length} / 4000`;
+  selectedCategory = payload.category || null;
+  pendingImage = payload.image || null;
+  [...chipRow.querySelectorAll(".chip")].forEach((c) => {
+    c.classList.toggle("selected", c.dataset.cat === selectedCategory);
+  });
+  if (pendingImage) {
+    imagePreviewThumb.hidden = false;
+    imagePreviewImg.src = `data:${pendingImage.mediaType};base64,${pendingImage.data}`;
+    imagePreviewName.textContent = "Screenshot attached";
+    imagePreview.hidden = false;
+  }
+
+  filingSection.hidden = true;
+  loadingSection.hidden = false;
+  loadingTextEl.textContent = "Confirming payment\u2026";
+
+  // Ask our own server to check with Stripe — never trust "paid" from the URL alone.
+  let verifiedPaid = false;
+  try {
+    const verifyRes = await fetch("/api/verify-bribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId }),
+    });
+    if (verifyRes.ok) {
+      const verifyData = await verifyRes.json();
+      verifiedPaid = !!verifyData.paid;
+    } else {
+      console.error("Payment verification request failed:", verifyRes.status, await verifyRes.text());
+    }
+  } catch (err) {
+    console.error("Payment verification failed:", err);
+  }
+
+  loadingTextEl.textContent = "Reading the receipts\u2026";
+
+  submitCase({
+    transcript: payload.transcript,
+    category: payload.category,
+    image: payload.image,
+    bribed: verifiedPaid,
+  });
+})();

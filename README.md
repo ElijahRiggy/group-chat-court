@@ -56,9 +56,34 @@ You've got three of the four in already — no subscriptions this time:
 - **One-time "objection" fee**: the button reads "Object to the Ruling — guarantee a
   favorable verdict ($2)". Create a matching Stripe Payment Link ($2, one-time) in your
   Stripe dashboard, then replace `OBJECTION_PAYMENT_LINK` at the top of `script.js`
-  with that link. No server-side payment code needed — it's a straight redirect to
-  Stripe's hosted checkout, same as a Ko-fi button. Update the price in the button text
-  in `index.html` if you set a different amount.
+  with that link. No server-side payment code needed for the checkout itself — it's a
+  straight redirect to Stripe's hosted checkout, same as a Ko-fi button.
+
+  **This is now actually verified, not just trusted.** Clicking the button saves
+  whatever's in the form to `localStorage`, then opens Stripe. In Stripe's Payment
+  Link settings, under the **After payment** tab, set the redirect to:
+
+  ```
+  https://groupchatcourt.vercel.app/?session_id={CHECKOUT_SESSION_ID}
+  ```
+
+  Type `{CHECKOUT_SESSION_ID}` exactly like that — Stripe replaces it with the real
+  session ID on redirect. When someone lands back on that URL, the site calls
+  `api/verify-bribe.js`, which asks Stripe's API whether that specific session was
+  actually paid, and only *then* restores the saved evidence and refiles it with the
+  bribe applied. Add a second env var for this in Vercel:
+
+  - `STRIPE_SECRET_KEY` — your **secret** key (starts with `sk_live_...` or
+    `sk_test_...`) from [dashboard.stripe.com/apikeys](https://dashboard.stripe.com/apikeys).
+    This is different from the Payment Link URL, and different from any publishable
+    key — never put this one in a file that ships to the browser (`api/verify-bribe.js`
+    is safe since serverless functions run server-side only).
+
+  Remaining known gap: there's no database here, so a paid `session_id` could
+  technically be replayed (revisiting the same redirect URL) for more than one bribed
+  ruling. Closing that fully would mean adding persistent storage (e.g. Vercel KV) to
+  mark session ids as used — reasonable to skip for a $2 novelty feature, but worth
+  knowing about.
 
 Note: the "objection" button currently just opens the payment link — it doesn't
 automatically re-run the verdict with a "bribed" outcome. If you want that behavior
