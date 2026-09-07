@@ -30,7 +30,13 @@ fences, nothing before or after it. Use this exact shape:
  "charge": "a mock legal charge name in a few words, e.g. Reckless Endangerment of Group Harmony",
  "ruling": "2-4 sentences delivering the reasoning, written in a judge's voice",
  "sentence": "one sentence describing the punishment or resolution",
- "juryPercent": a number from 0 to 100 estimating how much the public would side with whoever pasted this transcript}`;
+ "juryPercent": a number from 0 to 100 estimating how much the public would side with whoever pasted this transcript}
+
+Keep juryPercent consistent with your stamp and ruling — it should not contradict the verdict.
+If you rule against the filer (e.g. stamp is GUILTY or similar), juryPercent should generally be
+below 50. If you rule in their favor (e.g. NOT GUILTY), it should generally be above 50. If it's a
+mixed/BOTH GUILTY verdict, juryPercent can sit closer to the middle. Don't rule someone guilty
+while also claiming most of the public would side with them.`;
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -148,6 +154,15 @@ export default async function handler(req, res) {
       };
     }
 
+    const stampUpper = String(parsed.stamp || "").toUpperCase();
+    let juryPercent = Math.max(0, Math.min(100, Math.round(Number(parsed.juryPercent) || 50)));
+    // Backstop in case the model doesn't follow the consistency instruction above:
+    // nudge obviously contradictory pairings (e.g. "GUILTY" + 70%+ favor) back in line.
+    const ruledAgainstFiler = stampUpper.includes("GUILTY") && !stampUpper.includes("NOT GUILTY") && !stampUpper.includes("BOTH");
+    const ruledForFiler = stampUpper.includes("NOT GUILTY") || stampUpper.includes("DISMISSED") || stampUpper.includes("VINDICATED");
+    if (ruledAgainstFiler && juryPercent > 45) juryPercent = 40;
+    if (ruledForFiler && juryPercent < 55) juryPercent = 60;
+
     return res.status(200).json({
       stamp: String(parsed.stamp || "RULING ISSUED").slice(0, 40),
       headline: String(parsed.headline || "The Ruling").slice(0, 60),
@@ -155,7 +170,7 @@ export default async function handler(req, res) {
       charge: String(parsed.charge || "").slice(0, 100),
       ruling: String(parsed.ruling || "").slice(0, 1200),
       sentence: String(parsed.sentence || "").slice(0, 300),
-      juryPercent: Math.max(0, Math.min(100, Math.round(Number(parsed.juryPercent) || 50))),
+      juryPercent,
     });
   } catch (err) {
     console.error(err);
