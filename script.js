@@ -3,11 +3,33 @@ const OBJECTION_PAYMENT_LINK = "https://buy.stripe.com/REPLACE_WITH_YOUR_PAYMENT
 const KOFI_LINK = "https://ko-fi.com/REPLACE_WITH_YOUR_USERNAME";
 // --------------------------------------------------------------------------
 
-const EXAMPLE_TRANSCRIPT =
-  "Sam: you said you'd venmo me back on Friday\n" +
-  "Jordan: I said I'd TRY\n" +
-  "Sam: that's not what try means\n" +
-  "Jordan: it's literally what try means";
+const EXAMPLES = [
+  {
+    category: "Roommates",
+    text: "Jess: it's your turn to take out the trash\nMorgan: it's literally still half full\nJess: the pickup is tomorrow morning\nMorgan: then it'll be full BY tomorrow, problem solved",
+  },
+  {
+    category: "Family",
+    text: "Mom: can you host Thanksgiving this year\nMe: I hosted the last three years\nMom: right, so you have the system down\nMe: that is not how systems work",
+  },
+  {
+    category: "Friend group",
+    text: "Priya: can we not do the whole 'everyone splits evenly' thing again\nDrew: you had 2 drinks and an appetizer, that's not equal to my steak\nPriya: I'm just saying maybe check what you ordered before you order it\nDrew: it's called treating yourself",
+  },
+  {
+    category: "Relationship",
+    text: "Alex: you said you'd remember this time\nJordan: I set a reminder!\nAlex: for the day after\nJordan: better late than a calendar malfunction",
+  },
+  {
+    category: "Work",
+    text: "Casey: did you send the deck to the client?\nRiley: I thought you were sending it\nCasey: I said 'can you send it' in the thread\nRiley: that reads as a question, not a task",
+  },
+  {
+    category: "Group chat",
+    text: "Sam: you said you'd venmo me back on Friday\nJordan: I said I'd TRY\nSam: that's not what try means\nJordan: it's literally what try means",
+  },
+];
+let lastExampleIndex = -1;
 
 const casePillEl = document.getElementById("case-pill");
 const chipRow = document.getElementById("chip-row");
@@ -35,7 +57,9 @@ const newCaseBtn = document.getElementById("new-case-btn");
 const tipLink = document.getElementById("tip-link");
 const imageInput = document.getElementById("image-input");
 const imagePreview = document.getElementById("image-preview");
+const imagePreviewThumb = document.getElementById("image-preview-thumb");
 const imagePreviewImg = document.getElementById("image-preview-img");
+const imagePreviewName = document.getElementById("image-preview-name");
 const removeImageBtn = document.getElementById("remove-image-btn");
 
 tipLink.href = KOFI_LINK;
@@ -85,7 +109,10 @@ imageInput.addEventListener("change", async () => {
 
   try {
     pendingImage = await downscaleImage(file, 1400, 0.82);
+    imagePreviewThumb.hidden = false;
+    imagePreviewImg.onerror = () => { imagePreviewThumb.hidden = true; };
     imagePreviewImg.src = `data:${pendingImage.mediaType};base64,${pendingImage.data}`;
+    imagePreviewName.textContent = file.name || "Screenshot attached";
     imagePreview.hidden = false;
   } catch (err) {
     console.error(err);
@@ -98,7 +125,7 @@ removeImageBtn.addEventListener("click", () => {
   pendingImage = null;
   imageInput.value = "";
   imagePreview.hidden = true;
-  imagePreviewImg.src = "";
+  imagePreviewImg.removeAttribute("src");
 });
 
 function makeCaseNumber() {
@@ -125,8 +152,20 @@ chipRow.addEventListener("click", (e) => {
 });
 
 exampleBtn.addEventListener("click", () => {
-  transcriptEl.value = EXAMPLE_TRANSCRIPT;
+  let idx;
+  do {
+    idx = Math.floor(Math.random() * EXAMPLES.length);
+  } while (EXAMPLES.length > 1 && idx === lastExampleIndex);
+  lastExampleIndex = idx;
+
+  const example = EXAMPLES[idx];
+  transcriptEl.value = example.text;
   charCountEl.textContent = `${transcriptEl.value.length} / 4000`;
+
+  selectedCategory = example.category;
+  [...chipRow.querySelectorAll(".chip")].forEach((c) => {
+    c.classList.toggle("selected", c.dataset.cat === example.category);
+  });
 });
 
 transcriptEl.addEventListener("input", () => {
@@ -159,7 +198,14 @@ async function fileCase() {
       signal: abortController.signal,
     });
 
-    if (!res.ok) throw new Error(`Server responded ${res.status}`);
+    if (!res.ok) {
+      let message = "The court reporter fainted. Try again in a moment.";
+      try {
+        const errBody = await res.json();
+        if (errBody && errBody.error) message = errBody.error;
+      } catch (_) { /* response wasn't JSON, keep the generic message */ }
+      throw new Error(message);
+    }
 
     const data = await res.json();
     currentCase = { ...data, transcript, hadImage: !!pendingImage, caseNo: casePillEl.textContent };
@@ -169,7 +215,7 @@ async function fileCase() {
     console.error(err);
     loadingSection.hidden = true;
     filingSection.hidden = false;
-    showError("The court reporter fainted. Try again in a moment.");
+    showError(err.message || "The court reporter fainted. Try again in a moment.");
   }
 }
 
@@ -217,7 +263,7 @@ newCaseBtn.addEventListener("click", () => {
   pendingImage = null;
   imageInput.value = "";
   imagePreview.hidden = true;
-  imagePreviewImg.src = "";
+  imagePreviewImg.removeAttribute("src");
   [...chipRow.querySelectorAll(".chip")].forEach((c) => c.classList.remove("selected"));
   casePillEl.textContent = makeCaseNumber();
   currentCase = null;

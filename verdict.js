@@ -77,28 +77,39 @@ export default async function handler(req, res) {
     : textPart;
 
   try {
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_completion_tokens: 600,
-        temperature: 0.9,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userContent },
-        ],
-      }),
-    });
+    const messages = [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: userContent },
+    ];
+
+    const callGroq = (useJsonMode) =>
+      fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          max_completion_tokens: 600,
+          temperature: 0.9,
+          ...(useJsonMode ? { response_format: { type: "json_object" } } : {}),
+          messages,
+        }),
+      });
+
+    let response = await callGroq(true);
 
     if (!response.ok) {
-      const errText = await response.text();
-      console.error("Groq API error:", errText);
-      return res.status(502).json({ error: "The judge is unreachable right now." });
+      const firstErrText = await response.text();
+      console.error("Groq API error (json mode):", firstErrText);
+      // Some models/params reject response_format — retry once without it before giving up.
+      response = await callGroq(false);
+      if (!response.ok) {
+        const secondErrText = await response.text();
+        console.error("Groq API error (fallback, no json mode):", secondErrText);
+        return res.status(502).json({ error: "The judge is unreachable right now." });
+      }
     }
 
     const data = await response.json();

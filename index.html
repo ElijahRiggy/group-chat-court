@@ -48,8 +48,13 @@
       <span class="upload-hint">optional, up to 5MB</span>
     </div>
     <div class="image-preview" id="image-preview" hidden>
-      <img id="image-preview-img" alt="Uploaded screenshot preview" />
-      <button type="button" class="remove-image-btn" id="remove-image-btn" aria-label="Remove screenshot">✕ Remove</button>
+      <div class="image-preview-thumb" id="image-preview-thumb">
+        <img id="image-preview-img" alt="" />
+      </div>
+      <div class="image-preview-meta">
+        <p class="image-preview-name" id="image-preview-name">Screenshot attached</p>
+        <button type="button" class="remove-image-btn" id="remove-image-btn">✕ Remove</button>
+      </div>
     </div>
 
     <div class="filing-row">
