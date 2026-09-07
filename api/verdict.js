@@ -45,6 +45,7 @@ export default async function handler(req, res) {
   }
 
   const { transcript, category, image, bribed } = req.body || {};
+  console.log(`/api/verdict received: bribed=${!!bribed}, hasText=${typeof transcript === "string" && transcript.trim().length >= 20}, hasImage=${!!(image && image.data)}`);
 
   const hasText = typeof transcript === "string" && transcript.trim().length >= 20;
   const hasImage = image && typeof image.data === "string" && typeof image.mediaType === "string";

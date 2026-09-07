@@ -29,12 +29,14 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error("Stripe verify error:", errText);
+      console.error(`Stripe verify error (session=${sessionId}, mode=${sessionId.startsWith("cs_live_") ? "live" : "test"}):`, errText);
       return res.status(502).json({ error: "Could not verify payment with Stripe." });
     }
 
     const session = await response.json();
-    return res.status(200).json({ paid: session.payment_status === "paid" });
+    const paid = session.payment_status === "paid";
+    console.log(`Bribe verification: session=${sessionId} mode=${sessionId.startsWith("cs_live_") ? "live" : "test"} payment_status=${session.payment_status} paid=${paid}`);
+    return res.status(200).json({ paid });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Something went wrong verifying payment." });
