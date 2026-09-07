@@ -37,10 +37,12 @@ In the Vercel project: **Settings → Environment Variables**, add:
 Redeploy after adding it (env vars only apply to new deployments).
 
 `api/verdict.js` calls Groq's OpenAI-compatible endpoint
-(`https://api.groq.com/openai/v1/chat/completions`) using `qwen/qwen3.6-27b`, currently
-Groq's vision+text model. Groq's lineup changes often — if you get a
-`model_decommissioned` error, check [console.groq.com/docs/models](https://console.groq.com/docs/models)
-for the current vision-capable model and swap the `MODEL` constant at the top of
+(`https://api.groq.com/openai/v1/chat/completions`) using two models: `openai/gpt-oss-120b`
+for plain-text filings, and `qwen/qwen3.6-27b` for filings with a screenshot attached
+(gpt-oss-120b is text-only and can't read images). Groq's lineup changes often — if
+you get a `model_decommissioned` error, check
+[console.groq.com/docs/models](https://console.groq.com/docs/models) for current
+options and swap the `TEXT_MODEL` / `VISION_MODEL` constants at the top of
 `api/verdict.js`.
 
 ## 4. Wire up monetization

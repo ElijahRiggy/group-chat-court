@@ -4,11 +4,14 @@
 // Get a key at https://console.groq.com
 
 // Groq's model lineup changes frequently — check https://console.groq.com/docs/models
-// before depending on this in production. qwen/qwen3.6-27b is Groq's current
-// vision+text model as of writing; some sources flag it as a preview model rather
-// than a guaranteed-stable production one, so keep an eye on the deprecations page:
-// https://console.groq.com/docs/deprecations
-const MODEL = "qwen/qwen3.6-27b";
+// before depending on this in production.
+//
+// openai/gpt-oss-120b is text-only, so it's used for plain-text filings. It can't
+// read images, so when a screenshot is attached the request is routed to a
+// vision-capable model instead. If that model gets renamed/decommissioned, swap
+// VISION_MODEL below (see https://console.groq.com/docs/vision for current options).
+const TEXT_MODEL = "openai/gpt-oss-120b";
+const VISION_MODEL = "qwen/qwen3.6-27b";
 
 const SYSTEM_PROMPT = `You are the presiding judge of Group Chat Court, a satirical small-claims
 court that rules on petty group-chat arguments for entertainment purposes.
@@ -77,6 +80,8 @@ export default async function handler(req, res) {
     : textPart;
 
   try {
+    const model = hasImage ? VISION_MODEL : TEXT_MODEL;
+
     const messages = [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: userContent },
@@ -90,7 +95,7 @@ export default async function handler(req, res) {
           "Authorization": `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: MODEL,
+          model,
           max_completion_tokens: 600,
           temperature: 0.9,
           ...(useJsonMode ? { response_format: { type: "json_object" } } : {}),
@@ -102,12 +107,12 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       const firstErrText = await response.text();
-      console.error("Groq API error (json mode):", firstErrText);
+      console.error(`Groq API error (json mode, model=${model}):`, firstErrText);
       // Some models/params reject response_format — retry once without it before giving up.
       response = await callGroq(false);
       if (!response.ok) {
         const secondErrText = await response.text();
-        console.error("Groq API error (fallback, no json mode):", secondErrText);
+        console.error(`Groq API error (fallback, no json mode, model=${model}):`, secondErrText);
         return res.status(502).json({ error: "The judge is unreachable right now." });
       }
     }
